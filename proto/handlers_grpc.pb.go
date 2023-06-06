@@ -11,6 +11,7 @@ import (
 	grpc "google.golang.org/grpc"
 	codes "google.golang.org/grpc/codes"
 	status "google.golang.org/grpc/status"
+	emptypb "google.golang.org/protobuf/types/known/emptypb"
 )
 
 // This is a compile-time assertion to ensure that this generated file
@@ -35,7 +36,7 @@ type GophkeeperClient interface {
 	Auth(ctx context.Context, in *AuthLoginRequest, opts ...grpc.CallOption) (*AuthLoginResponse, error)
 	AddData(ctx context.Context, in *AddDataRequest, opts ...grpc.CallOption) (*AddDelDataResponse, error)
 	GetData(ctx context.Context, in *GetDataRequest, opts ...grpc.CallOption) (*GetDataResponse, error)
-	Sync(ctx context.Context, in *SynchronizationRequest, opts ...grpc.CallOption) (*SynchronizationResponse, error)
+	Sync(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*SynchronizationResponse, error)
 	DelData(ctx context.Context, in *GetDataRequest, opts ...grpc.CallOption) (*AddDelDataResponse, error)
 }
 
@@ -83,7 +84,7 @@ func (c *gophkeeperClient) GetData(ctx context.Context, in *GetDataRequest, opts
 	return out, nil
 }
 
-func (c *gophkeeperClient) Sync(ctx context.Context, in *SynchronizationRequest, opts ...grpc.CallOption) (*SynchronizationResponse, error) {
+func (c *gophkeeperClient) Sync(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*SynchronizationResponse, error) {
 	out := new(SynchronizationResponse)
 	err := c.cc.Invoke(ctx, Gophkeeper_Sync_FullMethodName, in, out, opts...)
 	if err != nil {
@@ -109,7 +110,7 @@ type GophkeeperServer interface {
 	Auth(context.Context, *AuthLoginRequest) (*AuthLoginResponse, error)
 	AddData(context.Context, *AddDataRequest) (*AddDelDataResponse, error)
 	GetData(context.Context, *GetDataRequest) (*GetDataResponse, error)
-	Sync(context.Context, *SynchronizationRequest) (*SynchronizationResponse, error)
+	Sync(context.Context, *emptypb.Empty) (*SynchronizationResponse, error)
 	DelData(context.Context, *GetDataRequest) (*AddDelDataResponse, error)
 	mustEmbedUnimplementedGophkeeperServer()
 }
@@ -130,7 +131,7 @@ func (UnimplementedGophkeeperServer) AddData(context.Context, *AddDataRequest) (
 func (UnimplementedGophkeeperServer) GetData(context.Context, *GetDataRequest) (*GetDataResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetData not implemented")
 }
-func (UnimplementedGophkeeperServer) Sync(context.Context, *SynchronizationRequest) (*SynchronizationResponse, error) {
+func (UnimplementedGophkeeperServer) Sync(context.Context, *emptypb.Empty) (*SynchronizationResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Sync not implemented")
 }
 func (UnimplementedGophkeeperServer) DelData(context.Context, *GetDataRequest) (*AddDelDataResponse, error) {
@@ -222,7 +223,7 @@ func _Gophkeeper_GetData_Handler(srv interface{}, ctx context.Context, dec func(
 }
 
 func _Gophkeeper_Sync_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(SynchronizationRequest)
+	in := new(emptypb.Empty)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -234,7 +235,7 @@ func _Gophkeeper_Sync_Handler(srv interface{}, ctx context.Context, dec func(int
 		FullMethod: Gophkeeper_Sync_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(GophkeeperServer).Sync(ctx, req.(*SynchronizationRequest))
+		return srv.(GophkeeperServer).Sync(ctx, req.(*emptypb.Empty))
 	}
 	return interceptor(ctx, in, info, handler)
 }

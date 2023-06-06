@@ -8,7 +8,7 @@ type Auth struct {
 }
 type Data struct {
 	UserID    uint32
-	DataID    uint32
+	DataID    string
 	Data      string
 	Metadata  string
 	ChangedAt time.Time

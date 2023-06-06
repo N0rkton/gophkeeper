@@ -8,7 +8,6 @@ import (
 	"gophkeeper/internal/sessionstorage"
 	"log"
 	"os"
-	"strconv"
 )
 
 func Init() (sessionstorage.SessionStorage, error) {
@@ -26,11 +25,11 @@ func Init() (sessionstorage.SessionStorage, error) {
 			return usersStorage,
 				fmt.Errorf("unable to unmarshall: %w", err)
 		}
-		id, err := strconv.Atoi(text[2])
+		//id, err := strconv.Atoi(text[2])
 		if err != nil {
 			return nil, errors.New("wrong data in file")
 		}
-		usersStorage.AddUserFromFile(text[0], text[1], uint32(id))
+		//usersStorage.AddUserFromFile(text[0], text[1], uint32(id))
 
 	}
 	return usersStorage, nil

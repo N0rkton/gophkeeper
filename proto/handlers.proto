@@ -1,7 +1,7 @@
 syntax="proto3";
 
 package gophkeeper;
-
+import "google/protobuf/empty.proto";
 option go_package = "gophkeeper/proto";
 
 message AuthLoginRequest{
@@ -9,7 +9,8 @@ message AuthLoginRequest{
   string password=2;
 }
 message AuthLoginResponse{
-  string error=1;
+  uint32 id=1;
+  string error=2;
 }
 message GetDataRequest{
   string data_id=1;
@@ -31,17 +32,15 @@ message AddDataRequest{
 message AddDelDataResponse{
   string error=1;
 }
-message SynchronizationRequest{
-  string login=1;
-}
 message SynchronizationResponse{
   repeated Data data=1;
+  string error=2;
 }
 service Gophkeeper{
   rpc Login(AuthLoginRequest) returns (AuthLoginResponse);
   rpc Auth(AuthLoginRequest) returns (AuthLoginResponse);
   rpc AddData(AddDataRequest) returns (AddDelDataResponse);
   rpc GetData(GetDataRequest)returns (GetDataResponse);
-  rpc Sync(SynchronizationRequest)returns (SynchronizationResponse);
+  rpc Sync(google.protobuf.Empty)returns (SynchronizationResponse);
   rpc DelData(GetDataRequest)returns (AddDelDataResponse);
 }

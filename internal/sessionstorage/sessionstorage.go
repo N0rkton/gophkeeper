@@ -3,48 +3,36 @@ package sessionstorage
 import (
 	"errors"
 	"sync"
-	"sync/atomic"
 )
 
+// todo testi i doc
 type SessionStorage interface {
-	AddUser(login string, password string) error
-	AddUserFromFile(login string, password string, id uint32) error
-	GetUser(login string) (User, error)
+	AddUser(user string, id uint32) error
+
+	GetUser(user string) (uint32, error)
 }
 type authUsersStorage struct {
-	authUsers map[string]User
+	authUsers map[string]uint32
 	mutex     sync.RWMutex
-	lastID    uint32
-}
-type User struct {
-	Password string
-	Id       uint32
 }
 
 func NewAuthUsersStorage() SessionStorage {
-	return &authUsersStorage{authUsers: make(map[string]User)}
+	return &authUsersStorage{authUsers: make(map[string]uint32)}
 }
-func (us *authUsersStorage) AddUser(login string, password string) error {
-	atomic.AddUint32(&us.lastID, 1)
-	us.mutex.Lock()
-	us.authUsers[login] = User{Password: password, Id: us.lastID}
-	us.mutex.Unlock()
-	return nil
-}
-func (us *authUsersStorage) AddUserFromFile(login string, password string, id uint32) error {
-	us.lastID = id
-	us.mutex.Lock()
-	us.authUsers[login] = User{Password: password, Id: us.lastID}
-	us.mutex.Unlock()
-	return nil
-}
-func (us *authUsersStorage) GetUser(login string) (User, error) {
-	us.mutex.RLock()
-	user, ok := us.authUsers[login]
-	us.mutex.RUnlock()
 
+func (us *authUsersStorage) AddUser(user string, id uint32) error {
+	us.mutex.Lock()
+	us.authUsers[user] = id
+	us.mutex.Unlock()
+	return nil
+}
+
+func (us *authUsersStorage) GetUser(user string) (uint32, error) {
+	us.mutex.RLock()
+	id, ok := us.authUsers[user]
+	us.mutex.RUnlock()
 	if !ok {
-		return User{}, errors.New("user not found")
+		return 0, errors.New("user not found")
 	}
-	return user, nil
+	return id, nil
 }

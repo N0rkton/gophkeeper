@@ -7,12 +7,10 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/status"
-	"gophkeeper/client/verysecretfiles"
 	"gophkeeper/internal/datamodels"
 	"gophkeeper/internal/sessionstorage"
 	pb "gophkeeper/proto"
 	"log"
-	"sync"
 )
 
 // TODO время изменения тоже передавать в воркер
@@ -21,20 +19,25 @@ var (
 	ErrNotFound      = errors.New("not found")
 	ErrWrongPassword = errors.New("invalid password")
 	ErrInternal      = errors.New("server error")
+	ErrDuplicate     = errors.New("login already exists")
 )
 
 type Storage interface {
 	Auth(login string, password string) error
 	Login(login string, password string) (uint32, error)
 	AddData(data datamodels.Data) error
-	GetData(dataID uint32, userID uint32) (datamodels.Data, error)
-	DelData(dataID uint32, userID uint32) error
+	GetData(dataID string, userID uint32) (datamodels.Data, error)
+	DelData(dataID string, userID uint32) error
+	Sync(userId uint32) ([]datamodels.Data, error)
 }
 type storeInfo struct {
 	userID   uint32
+	dataID   string
 	data     string
 	metaInfo string
 }
+
+var Users sessionstorage.UserSession
 
 func Init() {
 	conn, err := grpc.Dial(":3200", grpc.WithTransportCredentials(insecure.NewCredentials()))
@@ -47,18 +50,17 @@ func Init() {
 
 // MemoryStorage a struct that implements the Storage interface and stores data in the computer's memory.
 type MemoryStorage struct {
-	localMem map[uint32]storeInfo
-	mu       sync.RWMutex
-	session  sessionstorage.SessionStorage
+	localMem map[string]storeInfo
 }
 
 // NewMemoryStorage creates a new MemoryStorage instance.
 func NewMemoryStorage() Storage {
-	session, err := verysecretfiles.Init()
-	if err != nil {
-		log.Fatalf("err reading secretfile")
-	}
-	return &MemoryStorage{localMem: make(map[uint32]storeInfo), session: session}
+	//todo init
+	//if err != nil {
+	//	log.Fatalf("err reading secretfile")
+	//}
+	Users = sessionstorage.Init()
+	return &MemoryStorage{localMem: make(map[string]storeInfo)}
 }
 
 func (ms *MemoryStorage) Auth(login string, password string) error {
@@ -70,24 +72,23 @@ func (ms *MemoryStorage) Auth(login string, password string) error {
 		return nil
 	}
 	if st.Code() == codes.Unauthenticated {
-		//узнать код если сервер не отвечает
+		//TODO узнать код если сервер не отвечает
 	}
-	_, ok := ms.session.GetUser(login)
-	if ok == nil {
+	ok := Users.AddUser(login, password)
+	if ok != nil {
 		return errors.New("user already exists")
 	}
-	ms.session.AddUser(login, password)
 	return nil
 }
 func (ms *MemoryStorage) Login(login string, password string) (uint32, error) {
-	realPass, ok := ms.session.GetUser(login)
-	if ok != nil {
+	realPass, ok := Users.GetUser(login)
+	if !ok {
 		return 0, errors.New("user not found")
 	}
-	if realPass.Password != password {
+	if realPass != password {
 		return 0, errors.New("wrong password")
 	}
-	return realPass.Id, nil
+	return 0, nil
 }
 
 func (ms *MemoryStorage) AddData(data datamodels.Data) error {
@@ -96,7 +97,7 @@ func (ms *MemoryStorage) AddData(data datamodels.Data) error {
 	return nil
 }
 
-func (ms *MemoryStorage) DelData(dataID uint32, userID uint32) error {
+func (ms *MemoryStorage) DelData(dataID string, userID uint32) error {
 	user, ok := ms.localMem[dataID]
 	if !ok {
 		return errors.New("no data to delete")
@@ -107,7 +108,7 @@ func (ms *MemoryStorage) DelData(dataID uint32, userID uint32) error {
 	//TODO записывать в файл
 	return nil
 }
-func (ms *MemoryStorage) GetData(dataID uint32, userID uint32) (datamodels.Data, error) {
+func (ms *MemoryStorage) GetData(dataID string, userID uint32) (datamodels.Data, error) {
 	data, ok := ms.localMem[dataID]
 	if !ok {
 		return datamodels.Data{}, errors.New("no data find")
@@ -116,4 +117,7 @@ func (ms *MemoryStorage) GetData(dataID uint32, userID uint32) (datamodels.Data,
 		return datamodels.Data{DataID: dataID, Data: data.data, Metadata: data.metaInfo}, nil
 	}
 	return datamodels.Data{}, errors.New("no data find")
+}
+func (ms *MemoryStorage) Sync(userId uint32) ([]datamodels.Data, error) {
+	return nil, nil
 }
