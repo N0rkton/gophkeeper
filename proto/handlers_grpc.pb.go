@@ -20,12 +20,13 @@ import (
 const _ = grpc.SupportPackageIsVersion7
 
 const (
-	Gophkeeper_Login_FullMethodName   = "/gophkeeper.Gophkeeper/Login"
-	Gophkeeper_Auth_FullMethodName    = "/gophkeeper.Gophkeeper/Auth"
-	Gophkeeper_AddData_FullMethodName = "/gophkeeper.Gophkeeper/AddData"
-	Gophkeeper_GetData_FullMethodName = "/gophkeeper.Gophkeeper/GetData"
-	Gophkeeper_Sync_FullMethodName    = "/gophkeeper.Gophkeeper/Sync"
-	Gophkeeper_DelData_FullMethodName = "/gophkeeper.Gophkeeper/DelData"
+	Gophkeeper_Login_FullMethodName      = "/gophkeeper.Gophkeeper/Login"
+	Gophkeeper_Auth_FullMethodName       = "/gophkeeper.Gophkeeper/Auth"
+	Gophkeeper_AddData_FullMethodName    = "/gophkeeper.Gophkeeper/AddData"
+	Gophkeeper_GetData_FullMethodName    = "/gophkeeper.Gophkeeper/GetData"
+	Gophkeeper_Sync_FullMethodName       = "/gophkeeper.Gophkeeper/Sync"
+	Gophkeeper_ClientSync_FullMethodName = "/gophkeeper.Gophkeeper/ClientSync"
+	Gophkeeper_DelData_FullMethodName    = "/gophkeeper.Gophkeeper/DelData"
 )
 
 // GophkeeperClient is the client API for Gophkeeper service.
@@ -34,10 +35,11 @@ const (
 type GophkeeperClient interface {
 	Login(ctx context.Context, in *AuthLoginRequest, opts ...grpc.CallOption) (*AuthLoginResponse, error)
 	Auth(ctx context.Context, in *AuthLoginRequest, opts ...grpc.CallOption) (*AuthLoginResponse, error)
-	AddData(ctx context.Context, in *AddDataRequest, opts ...grpc.CallOption) (*AddDelDataResponse, error)
+	AddData(ctx context.Context, in *AddDataRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	GetData(ctx context.Context, in *GetDataRequest, opts ...grpc.CallOption) (*GetDataResponse, error)
 	Sync(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*SynchronizationResponse, error)
-	DelData(ctx context.Context, in *GetDataRequest, opts ...grpc.CallOption) (*AddDelDataResponse, error)
+	ClientSync(ctx context.Context, in *ClientSyncRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	DelData(ctx context.Context, in *GetDataRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 }
 
 type gophkeeperClient struct {
@@ -66,8 +68,8 @@ func (c *gophkeeperClient) Auth(ctx context.Context, in *AuthLoginRequest, opts 
 	return out, nil
 }
 
-func (c *gophkeeperClient) AddData(ctx context.Context, in *AddDataRequest, opts ...grpc.CallOption) (*AddDelDataResponse, error) {
-	out := new(AddDelDataResponse)
+func (c *gophkeeperClient) AddData(ctx context.Context, in *AddDataRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
 	err := c.cc.Invoke(ctx, Gophkeeper_AddData_FullMethodName, in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -93,8 +95,17 @@ func (c *gophkeeperClient) Sync(ctx context.Context, in *emptypb.Empty, opts ...
 	return out, nil
 }
 
-func (c *gophkeeperClient) DelData(ctx context.Context, in *GetDataRequest, opts ...grpc.CallOption) (*AddDelDataResponse, error) {
-	out := new(AddDelDataResponse)
+func (c *gophkeeperClient) ClientSync(ctx context.Context, in *ClientSyncRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
+	err := c.cc.Invoke(ctx, Gophkeeper_ClientSync_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *gophkeeperClient) DelData(ctx context.Context, in *GetDataRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
 	err := c.cc.Invoke(ctx, Gophkeeper_DelData_FullMethodName, in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -108,10 +119,11 @@ func (c *gophkeeperClient) DelData(ctx context.Context, in *GetDataRequest, opts
 type GophkeeperServer interface {
 	Login(context.Context, *AuthLoginRequest) (*AuthLoginResponse, error)
 	Auth(context.Context, *AuthLoginRequest) (*AuthLoginResponse, error)
-	AddData(context.Context, *AddDataRequest) (*AddDelDataResponse, error)
+	AddData(context.Context, *AddDataRequest) (*emptypb.Empty, error)
 	GetData(context.Context, *GetDataRequest) (*GetDataResponse, error)
 	Sync(context.Context, *emptypb.Empty) (*SynchronizationResponse, error)
-	DelData(context.Context, *GetDataRequest) (*AddDelDataResponse, error)
+	ClientSync(context.Context, *ClientSyncRequest) (*emptypb.Empty, error)
+	DelData(context.Context, *GetDataRequest) (*emptypb.Empty, error)
 	mustEmbedUnimplementedGophkeeperServer()
 }
 
@@ -125,7 +137,7 @@ func (UnimplementedGophkeeperServer) Login(context.Context, *AuthLoginRequest) (
 func (UnimplementedGophkeeperServer) Auth(context.Context, *AuthLoginRequest) (*AuthLoginResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Auth not implemented")
 }
-func (UnimplementedGophkeeperServer) AddData(context.Context, *AddDataRequest) (*AddDelDataResponse, error) {
+func (UnimplementedGophkeeperServer) AddData(context.Context, *AddDataRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method AddData not implemented")
 }
 func (UnimplementedGophkeeperServer) GetData(context.Context, *GetDataRequest) (*GetDataResponse, error) {
@@ -134,7 +146,10 @@ func (UnimplementedGophkeeperServer) GetData(context.Context, *GetDataRequest) (
 func (UnimplementedGophkeeperServer) Sync(context.Context, *emptypb.Empty) (*SynchronizationResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Sync not implemented")
 }
-func (UnimplementedGophkeeperServer) DelData(context.Context, *GetDataRequest) (*AddDelDataResponse, error) {
+func (UnimplementedGophkeeperServer) ClientSync(context.Context, *ClientSyncRequest) (*emptypb.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ClientSync not implemented")
+}
+func (UnimplementedGophkeeperServer) DelData(context.Context, *GetDataRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DelData not implemented")
 }
 func (UnimplementedGophkeeperServer) mustEmbedUnimplementedGophkeeperServer() {}
@@ -240,6 +255,24 @@ func _Gophkeeper_Sync_Handler(srv interface{}, ctx context.Context, dec func(int
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Gophkeeper_ClientSync_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ClientSyncRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(GophkeeperServer).ClientSync(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Gophkeeper_ClientSync_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(GophkeeperServer).ClientSync(ctx, req.(*ClientSyncRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _Gophkeeper_DelData_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(GetDataRequest)
 	if err := dec(in); err != nil {
@@ -284,6 +317,10 @@ var Gophkeeper_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "Sync",
 			Handler:    _Gophkeeper_Sync_Handler,
+		},
+		{
+			MethodName: "ClientSync",
+			Handler:    _Gophkeeper_ClientSync_Handler,
 		},
 		{
 			MethodName: "DelData",

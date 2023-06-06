@@ -12,4 +12,5 @@ type Data struct {
 	Data      string
 	Metadata  string
 	ChangedAt time.Time
+	Deleted   bool
 }

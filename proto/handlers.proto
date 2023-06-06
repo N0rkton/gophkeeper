@@ -2,6 +2,7 @@ syntax="proto3";
 
 package gophkeeper;
 import "google/protobuf/empty.proto";
+import "google/protobuf/timestamp.proto";
 option go_package = "gophkeeper/proto";
 
 message AuthLoginRequest{
@@ -19,6 +20,8 @@ message Data{
   string data_id=1;
   string data=2;
   string meta_info=3;
+bool deleted=4;
+  google.protobuf.Timestamp changed_at = 5;
 
 }
 message GetDataResponse{
@@ -36,11 +39,15 @@ message SynchronizationResponse{
   repeated Data data=1;
   string error=2;
 }
+message ClientSyncRequest{
+  repeated Data data=1;
+}
 service Gophkeeper{
   rpc Login(AuthLoginRequest) returns (AuthLoginResponse);
   rpc Auth(AuthLoginRequest) returns (AuthLoginResponse);
-  rpc AddData(AddDataRequest) returns (AddDelDataResponse);
+  rpc AddData(AddDataRequest) returns (google.protobuf.Empty);
   rpc GetData(GetDataRequest)returns (GetDataResponse);
   rpc Sync(google.protobuf.Empty)returns (SynchronizationResponse);
-  rpc DelData(GetDataRequest)returns (AddDelDataResponse);
+  rpc ClientSync(ClientSyncRequest)returns(google.protobuf.Empty);
+  rpc DelData(GetDataRequest)returns (google.protobuf.Empty);
 }

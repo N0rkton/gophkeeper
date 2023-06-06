@@ -19,8 +19,6 @@ func Init() {
 func main() {
 	Init()
 	storage.Init()
-	//TODO воркер
-	//TODO грпс клиент
 	app := cli.NewApp()
 	app.Name = "password keeper"
 	app.Usage = "keeps your passwords"
@@ -83,7 +81,7 @@ func addData() *cli.Command {
 			password := ctx.Args().Get(1)
 			id, err := Storage.Login(login, password)
 			if err != nil {
-				return fmt.Errorf("error happend: %w", err)
+				return fmt.Errorf("error login happend: %w", err)
 			}
 			var data datamodels.Data
 			data.DataID = ctx.Args().Get(2)
@@ -92,7 +90,7 @@ func addData() *cli.Command {
 			data.UserID = id
 			err = Storage.AddData(data)
 			if err != nil {
-				return fmt.Errorf("error happend: %w", err)
+				return fmt.Errorf("error add happend: %w", err)
 			}
 			fmt.Println("data added successfully")
 			return nil
@@ -116,14 +114,14 @@ func getData() *cli.Command {
 			password := ctx.Args().Get(1)
 			id, err := Storage.Login(login, password)
 			if err != nil {
-				return fmt.Errorf("error happend: %w", err)
+				return fmt.Errorf("error login happend: %w", err)
 			}
 			dataId := ctx.Args().Get(2)
 			data, err := Storage.GetData(dataId, id)
 			if err != nil {
-				return fmt.Errorf("error happend: %w", err)
+				return fmt.Errorf("error get happend: %w", err)
 			}
-			fmt.Println(data)
+			fmt.Println("DataID: " + data.DataID + " Data: " + data.Data + " Meta Info: " + data.Metadata)
 			return nil
 		},
 	}
@@ -145,12 +143,12 @@ func delData() *cli.Command {
 			password := ctx.Args().Get(1)
 			id, err := Storage.Login(login, password)
 			if err != nil {
-				return fmt.Errorf("error happend: %w", err)
+				return fmt.Errorf("error login happend: %w", err)
 			}
 			dataId := ctx.Args().Get(2)
 			err = Storage.DelData(dataId, id)
 			if err != nil {
-				return fmt.Errorf("error happend: %w", err)
+				return fmt.Errorf("error deletr happend: %w", err)
 			}
 			fmt.Println("data deleted successfully")
 			return nil
@@ -174,14 +172,17 @@ func sync() *cli.Command {
 			password := ctx.Args().Get(1)
 			id, err := Storage.Login(login, password)
 			if err != nil {
-				return fmt.Errorf("error happend: %w", err)
+				return fmt.Errorf("error login happend: %w", err)
 			}
-
+			Storage.ClientSync(id, nil)
 			data, err := Storage.Sync(id)
 			if err != nil {
-				return fmt.Errorf("error happend: %w", err)
+				return fmt.Errorf("error sync happend: %w", err)
 			}
-			fmt.Println(data)
+			for _, v := range data {
+				fmt.Println("DataID: " + v.DataID + " Data: " + v.Data + " Meta Info: " + v.Metadata)
+			}
+
 			return nil
 		},
 	}

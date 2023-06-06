@@ -7,6 +7,7 @@ import (
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/emptypb"
+	"google.golang.org/protobuf/types/known/timestamppb"
 	"gophkeeper/internal/datamodels"
 	"gophkeeper/internal/sessionstorage"
 	"gophkeeper/internal/storage"
@@ -22,9 +23,8 @@ func GetUserId(ctx context.Context) string {
 	var value []string
 	md, ok := metadata.FromIncomingContext(ctx)
 	if ok {
-		value = md.Get("UserId")
+		value = md.Get("userid")
 		if len(value) > 0 {
-			// ключ содержит слайс строк, получаем первую строку
 			userId = value[0]
 			return userId
 		}
@@ -56,6 +56,7 @@ var users sessionstorage.SessionStorage
 func Init() {
 	var err error
 	db, err = storage.NewDBStorage("postgresql://localhost:5432/shvm")
+	users = sessionstorage.NewAuthUsersStorage()
 	if err != nil {
 		log.Fatalf("err pinging db")
 	}
@@ -67,8 +68,8 @@ func UnaryInterceptor(ctx context.Context, req interface{}, info *grpc.UnaryServ
 	}
 	newCtx := metadata.NewIncomingContext(ctx, md)
 	return handler(newCtx, req)
-
 }
+
 func (g *GophKeeperServer) Auth(ctx context.Context, in *pb.AuthLoginRequest) (*pb.AuthLoginResponse, error) {
 	var resp pb.AuthLoginResponse
 	passHash := utils.GetMD5Hash(in.Password)
@@ -76,7 +77,7 @@ func (g *GophKeeperServer) Auth(ctx context.Context, in *pb.AuthLoginRequest) (*
 	if err != nil {
 		return nil, mapErr(err)
 	}
-	id, err := db.Login(in.Login, in.Password)
+	id, err := db.Login(in.Login, passHash)
 	if err != nil {
 		return nil, mapErr(err)
 	}
@@ -85,9 +86,9 @@ func (g *GophKeeperServer) Auth(ctx context.Context, in *pb.AuthLoginRequest) (*
 		return nil, err
 	}
 	resp.Id = id
-	md2 := metadata.New(map[string]string{"UserId": token})
-	metadata.NewIncomingContext(context.Background(), md2)
-	err = grpc.SetHeader(ctx, md2)
+	md2 := metadata.New(map[string]string{"userid": token})
+	outgoingCtx := metadata.NewOutgoingContext(ctx, md2)
+	err = grpc.SetHeader(outgoingCtx, md2)
 	if err != nil {
 		return nil, status.Error(codes.Internal, "SetHeader err")
 	}
@@ -95,26 +96,24 @@ func (g *GophKeeperServer) Auth(ctx context.Context, in *pb.AuthLoginRequest) (*
 }
 func (g *GophKeeperServer) Login(ctx context.Context, in *pb.AuthLoginRequest) (*pb.AuthLoginResponse, error) {
 	var resp pb.AuthLoginResponse
-	id, err := db.Login(in.Login, in.Password)
+	passHash := utils.GetMD5Hash(in.Password)
+	id, err := db.Login(in.Login, passHash)
 	if err != nil {
 		return nil, mapErr(err)
 	}
 	token := utils.GenerateRandomString(5)
-	if err = users.AddUser(token, id); err != nil {
+	err = users.AddUser(token, id)
+	if err != nil {
 		return nil, err
 	}
 	resp.Id = id
-	md2 := metadata.New(map[string]string{"UserId": token})
-	metadata.NewIncomingContext(context.Background(), md2)
-	err = grpc.SetHeader(ctx, md2)
-	if err != nil {
-		return nil, status.Error(codes.Internal, "SetHeader err")
-	}
+	header := metadata.Pairs("userid", token)
+	grpc.SetHeader(ctx, header)
+
 	return &resp, nil
 }
-func (g *GophKeeperServer) AddData(ctx context.Context, in *pb.AddDataRequest) (*pb.AddDelDataResponse, error) {
+func (g *GophKeeperServer) AddData(ctx context.Context, in *pb.AddDataRequest) (*emptypb.Empty, error) {
 	//TODO хранить зашифровано
-	//TODO vozvrashat' id zapisi?
 	token := GetUserId(ctx)
 	if token == "" {
 		return nil, status.Error(codes.Unauthenticated, "token is empty")
@@ -127,7 +126,7 @@ func (g *GophKeeperServer) AddData(ctx context.Context, in *pb.AddDataRequest) (
 	if err != nil {
 		return nil, mapErr(err)
 	}
-	return nil, nil
+	return new(emptypb.Empty), nil
 }
 func (g *GophKeeperServer) GetData(ctx context.Context, in *pb.GetDataRequest) (*pb.GetDataResponse, error) {
 	var resp pb.GetDataResponse
@@ -143,12 +142,10 @@ func (g *GophKeeperServer) GetData(ctx context.Context, in *pb.GetDataRequest) (
 	if err != nil {
 		return nil, mapErr(err)
 	}
-	resp.Data.DataId = in.DataId
-	resp.Data.Data = data.Data
-	resp.Data.MetaInfo = data.Metadata
+	resp.Data = &pb.Data{DataId: in.DataId, Data: data.Data, MetaInfo: data.Metadata}
 	return &resp, nil
 }
-func (g *GophKeeperServer) DelData(ctx context.Context, in *pb.GetDataRequest) (*pb.AddDelDataResponse, error) {
+func (g *GophKeeperServer) DelData(ctx context.Context, in *pb.GetDataRequest) (*emptypb.Empty, error) {
 	token := GetUserId(ctx)
 	if token == "" {
 		return nil, status.Error(codes.Unauthenticated, "token is empty")
@@ -161,7 +158,7 @@ func (g *GophKeeperServer) DelData(ctx context.Context, in *pb.GetDataRequest) (
 	if err != nil {
 		return nil, mapErr(err)
 	}
-	return nil, nil
+	return new(emptypb.Empty), nil
 }
 func (g *GophKeeperServer) Sync(ctx context.Context, in *emptypb.Empty) (*pb.SynchronizationResponse, error) {
 	var resp pb.SynchronizationResponse
@@ -177,10 +174,23 @@ func (g *GophKeeperServer) Sync(ctx context.Context, in *emptypb.Empty) (*pb.Syn
 	if err != nil {
 		return nil, mapErr(err)
 	}
-
 	for _, v := range data {
-
-		resp.Data = append(resp.Data, &pb.Data{DataId: v.DataID, Data: v.Data, MetaInfo: v.Metadata})
+		resp.Data = append(resp.Data, &pb.Data{DataId: v.DataID, Data: v.Data, MetaInfo: v.Metadata, Deleted: v.Deleted, ChangedAt: timestamppb.New(v.ChangedAt)})
 	}
 	return &resp, nil
+}
+func (g *GophKeeperServer) ClientSync(ctx context.Context, in *pb.ClientSyncRequest) (*emptypb.Empty, error) {
+	token := GetUserId(ctx)
+	if token == "" {
+		return nil, status.Error(codes.Unauthenticated, "token is empty")
+	}
+	id, err := users.GetUser(token)
+	if err != nil {
+		return nil, status.Error(codes.Unauthenticated, "user unauthenticated")
+	}
+	err = db.ClientSync(id, in.Data)
+	if err != nil {
+		return nil, mapErr(err)
+	}
+	return new(emptypb.Empty), nil
 }
