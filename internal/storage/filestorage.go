@@ -4,6 +4,7 @@ package storage
 import (
 	"context"
 	"errors"
+	"fmt"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/metadata"
@@ -12,16 +13,18 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"gophkeeper/internal/datamodels"
 	"gophkeeper/internal/sessionstorage"
+	files "gophkeeper/internal/storage/verysecretfiles"
 	"gophkeeper/internal/utils"
 	pb "gophkeeper/proto"
 	"log"
 	"time"
 )
 
-//todo obratnaya sync
-
 // Client - grpc default client
 var Client pb.GophkeeperClient
+
+// clientSecret - secret key for cipher
+var clientSecret = []byte("qpwoeritkvndgahz")
 
 // Module errors
 var (
@@ -59,24 +62,27 @@ func Init() {
 	if err != nil {
 		log.Fatal(err)
 	}
-
 	Client = pb.NewGophkeeperClient(conn)
-}
-
-type uniqueData struct {
-	dataID string
-	userId uint32
 }
 
 // MemoryStorage a struct that implements the Storage interface and stores data in the computer's memory.
 type MemoryStorage struct {
-	localMem map[uniqueData]datamodels.Data
+	localMem map[datamodels.UniqueData]datamodels.Data
 }
 
 // NewMemoryStorage creates a new MemoryStorage instance.
 func NewMemoryStorage() Storage {
 	Users = sessionstorage.Init()
-	return &MemoryStorage{localMem: make(map[uniqueData]datamodels.Data)}
+	var err error
+	Users, err = files.ReadUsers()
+	if err != nil {
+		log.Fatalf("error reading users: %v", err)
+	}
+	localMem, err := files.ReadData()
+	if err != nil {
+		log.Fatalf("error reading data: %v", err)
+	}
+	return &MemoryStorage{localMem: localMem}
 }
 
 // Auth adds a new user.
@@ -90,10 +96,10 @@ func (ms *MemoryStorage) Auth(login string, password string) error {
 	if st.Err() == nil {
 
 		ctx = metadata.NewOutgoingContext(context.Background(), md)
-		id, err := Client.Login(ctx, &pb.AuthLoginRequest{Login: login, Password: password}, grpc.Header(&header))
+		id, errClient := Client.Login(ctx, &pb.AuthLoginRequest{Login: login, Password: password}, grpc.Header(&header))
 		md = header
 
-		st = status.Convert(err)
+		st = status.Convert(errClient)
 		if st.Err() != nil {
 			return st.Err()
 		}
@@ -101,6 +107,10 @@ func (ms *MemoryStorage) Auth(login string, password string) error {
 		err = Users.AddUser(login, passHash, id.Id)
 		if err != nil {
 			return errors.New("user already exists")
+		}
+		wErr := files.WriteUser(datamodels.Auth{ID: id.Id, Login: login, Password: passHash})
+		if wErr != nil {
+			return errors.New("error writing to user file")
 		}
 		return nil
 	}
@@ -114,6 +124,14 @@ func (ms *MemoryStorage) Login(login string, password string) (uint32, error) {
 	id, err := Client.Login(ctx, &pb.AuthLoginRequest{Login: login, Password: password}, grpc.Header(&header))
 	md = header
 	if err == nil {
+		_, ok := Users.GetUser(login)
+		if !ok {
+			Users.AddUser(login, utils.GetMD5Hash(password), id.Id)
+			wErr := files.WriteUser(datamodels.Auth{ID: id.Id, Login: login, Password: utils.GetMD5Hash(password)})
+			if wErr != nil {
+				return 0, errors.New("error writing to user file")
+			}
+		}
 		return id.Id, nil
 	}
 	user, ok := Users.GetUser(login)
@@ -124,19 +142,22 @@ func (ms *MemoryStorage) Login(login string, password string) (uint32, error) {
 	if user.Password != passHash {
 		return 0, errors.New("wrong password")
 	}
-	return user.Id, nil
+	return user.ID, nil
 }
 
 // AddData adds data to the storage.
 func (ms *MemoryStorage) AddData(data datamodels.Data) error {
 	ctx := metadata.NewOutgoingContext(context.Background(), md)
-	_, err := Client.AddData(ctx, &pb.AddDataRequest{Data: &pb.Data{DataId: data.DataID, Data: data.Data, MetaInfo: data.Metadata}})
-	if err == nil {
-		return nil
-	}
+	Client.AddData(ctx, &pb.AddDataRequest{Data: &pb.Data{DataId: data.DataID, Data: data.Data, MetaInfo: data.Metadata}})
 
-	ms.localMem[uniqueData{dataID: data.DataID, userId: data.UserID}] = datamodels.Data{UserID: data.UserID, Data: data.Data, Metadata: data.Metadata, Deleted: false, ChangedAt: time.Now()}
-	//TODO записывать в файл
+	data.Data = utils.Encrypt(data.Data, clientSecret)
+	data.Metadata = utils.Encrypt(data.Metadata, clientSecret)
+
+	ms.localMem[datamodels.UniqueData{DataID: data.DataID, UserID: data.UserID}] = datamodels.Data{UserID: data.UserID, Data: data.Data, Metadata: data.Metadata, Deleted: false, ChangedAt: time.Now()}
+	err := files.WriteData(datamodels.Data{UserID: data.UserID, DataID: data.DataID, Data: data.Data, Metadata: data.Metadata, Deleted: false, ChangedAt: time.Now()})
+	if err != nil {
+		return errors.New("err writing data to file")
+	}
 	return nil
 }
 
@@ -144,12 +165,15 @@ func (ms *MemoryStorage) AddData(data datamodels.Data) error {
 func (ms *MemoryStorage) DelData(dataID string, userID uint32) error {
 	ctx := metadata.NewOutgoingContext(context.Background(), md)
 	Client.DelData(ctx, &pb.GetDataRequest{DataId: dataID})
-	user, _ := ms.localMem[uniqueData{dataID: dataID, userId: userID}]
+	user, _ := ms.localMem[datamodels.UniqueData{DataID: dataID, UserID: userID}]
 	if user.UserID == userID {
 		user.Deleted = true
-		ms.localMem[uniqueData{dataID: dataID, userId: userID}] = user
+		ms.localMem[datamodels.UniqueData{DataID: dataID, UserID: userID}] = user
 	}
-	//TODO записывать в файл
+	err := files.WriteData(datamodels.Data{UserID: user.UserID, DataID: user.DataID, Data: user.Data, Metadata: user.Metadata, Deleted: true, ChangedAt: time.Now()})
+	if err != nil {
+		return errors.New("err writing data to file")
+	}
 	return nil
 }
 
@@ -157,19 +181,32 @@ func (ms *MemoryStorage) DelData(dataID string, userID uint32) error {
 func (ms *MemoryStorage) GetData(dataID string, userID uint32) (datamodels.Data, error) {
 	ctx := metadata.NewOutgoingContext(context.Background(), md)
 	resp, err := Client.GetData(ctx, &pb.GetDataRequest{DataId: dataID})
+	var response datamodels.Data
 	if err == nil {
-		response := datamodels.Data{DataID: resp.Data.DataId, Data: resp.Data.Data, UserID: userID, Metadata: resp.Data.MetaInfo}
-		return response, nil
+		response = datamodels.Data{DataID: resp.Data.DataId, Data: resp.Data.Data, UserID: userID, Metadata: resp.Data.MetaInfo}
 	}
 
-	data, ok := ms.localMem[uniqueData{dataID: dataID, userId: userID}]
+	data, ok := ms.localMem[datamodels.UniqueData{DataID: dataID, UserID: userID}]
 	if !ok {
-		return datamodels.Data{}, errors.New("no data find")
+		if err == nil {
+			ms.localMem[datamodels.UniqueData{DataID: dataID, UserID: userID}] = response
+			errF := files.WriteData(response)
+			if errF != nil {
+				return datamodels.Data{}, errors.New("err writing data to file")
+			}
+			return response, nil
+		}
+		return datamodels.Data{}, errors.New("no data found")
 	}
-	if data.UserID == userID {
-		return data, nil
+	if data.UserID == userID && !data.Deleted {
+		fmt.Println(data.Deleted, data.ChangedAt)
+		data.Data = utils.Decrypt(data.Data, clientSecret)
+		data.Metadata = utils.Decrypt(data.Metadata, clientSecret)
 	}
-	return datamodels.Data{}, errors.New("no data find")
+	if err == nil && data.ChangedAt.Before(response.ChangedAt) {
+		return response, nil
+	}
+	return data, nil
 }
 
 // Sync synchronizes data from server for a specific user.
@@ -181,10 +218,25 @@ func (ms *MemoryStorage) Sync(userId uint32) ([]datamodels.Data, error) {
 	}
 	var response []datamodels.Data
 	for _, v := range resp.Data {
-		data, _ := ms.localMem[uniqueData{dataID: v.DataId, userId: userId}]
-		if data.ChangedAt.Before(data.ChangedAt) {
-			ms.localMem[uniqueData{dataID: v.DataId, userId: userId}] = datamodels.Data{DataID: v.DataId, Data: v.Data, UserID: userId, Metadata: v.MetaInfo, Deleted: v.Deleted, ChangedAt: v.ChangedAt.AsTime()}
+		data, ok := ms.localMem[datamodels.UniqueData{DataID: v.DataId, UserID: userId}]
+		if !ok {
 			response = append(response, datamodels.Data{DataID: v.DataId, Data: v.Data, UserID: userId, Metadata: v.MetaInfo, Deleted: v.Deleted, ChangedAt: v.ChangedAt.AsTime()})
+			v.Data = utils.Encrypt(v.Data, clientSecret)
+			v.MetaInfo = utils.Encrypt(v.MetaInfo, clientSecret)
+			ms.localMem[datamodels.UniqueData{DataID: v.DataId, UserID: userId}] = datamodels.Data{DataID: v.DataId, Data: v.Data, UserID: userId, Metadata: v.MetaInfo, Deleted: v.Deleted, ChangedAt: v.ChangedAt.AsTime()}
+			err = files.WriteData(datamodels.Data{UserID: data.UserID, DataID: data.DataID, Data: data.Data, Metadata: data.Metadata, Deleted: false, ChangedAt: v.ChangedAt.AsTime()})
+			if err != nil {
+				return nil, errors.New("err writing data to file")
+			}
+		} else if data.ChangedAt.Before(v.ChangedAt.AsTime()) {
+			response = append(response, datamodels.Data{DataID: v.DataId, Data: v.Data, UserID: userId, Metadata: v.MetaInfo, Deleted: v.Deleted, ChangedAt: v.ChangedAt.AsTime()})
+			v.Data = utils.Encrypt(v.Data, clientSecret)
+			v.MetaInfo = utils.Encrypt(v.MetaInfo, clientSecret)
+			ms.localMem[datamodels.UniqueData{DataID: v.DataId, UserID: userId}] = datamodels.Data{DataID: v.DataId, Data: v.Data, UserID: userId, Metadata: v.MetaInfo, Deleted: v.Deleted, ChangedAt: v.ChangedAt.AsTime()}
+			err = files.WriteData(datamodels.Data{UserID: data.UserID, DataID: data.DataID, Data: data.Data, Metadata: data.Metadata, Deleted: false, ChangedAt: v.ChangedAt.AsTime()})
+			if err != nil {
+				return nil, errors.New("err writing data to file")
+			}
 		}
 	}
 	return response, nil
@@ -194,11 +246,16 @@ func (ms *MemoryStorage) Sync(userId uint32) ([]datamodels.Data, error) {
 func (ms *MemoryStorage) ClientSync(userID uint32, data []*pb.Data) error {
 	var req []*pb.Data
 	for k, v := range ms.localMem {
-		if k.userId == userID {
+		if k.UserID == userID {
+			v.Data = utils.Decrypt(v.Data, clientSecret)
+			v.Metadata = utils.Decrypt(v.Metadata, clientSecret)
 			req = append(req, &pb.Data{Data: v.Data, DataId: v.DataID, MetaInfo: v.Metadata, Deleted: v.Deleted, ChangedAt: timestamppb.New(v.ChangedAt)})
 		}
 	}
 	ctx := metadata.NewOutgoingContext(context.Background(), md)
-	Client.ClientSync(ctx, &pb.ClientSyncRequest{Data: req})
+	_, err := Client.ClientSync(ctx, &pb.ClientSyncRequest{Data: req})
+	if err != nil {
+		return err
+	}
 	return nil
 }

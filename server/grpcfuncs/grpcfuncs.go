@@ -1,3 +1,4 @@
+// Package grpcfuncs provides server-side gRPC functions for authentication, data management, and synchronization.
 package grpcfuncs
 
 import (
@@ -17,7 +18,7 @@ import (
 	"time"
 )
 
-// GetUserId - search UserId key in metadata
+// GetUserId - search UserID key in metadata
 func GetUserId(ctx context.Context) string {
 	var userId string
 	var value []string
@@ -46,6 +47,7 @@ func mapErr(err error) error {
 	return status.Errorf(codes.Internal, "internal error")
 }
 
+// GophKeeperServer is the gRPC server implementation for GophKeeper.
 type GophKeeperServer struct {
 	pb.UnimplementedGophkeeperServer
 }
@@ -53,6 +55,7 @@ type GophKeeperServer struct {
 var db storage.Storage
 var users sessionstorage.SessionStorage
 
+// Init initializes the gRPC server.
 func Init() {
 	var err error
 	db, err = storage.NewDBStorage("postgresql://localhost:5432/shvm")
@@ -61,15 +64,8 @@ func Init() {
 		log.Fatalf("err pinging db")
 	}
 }
-func UnaryInterceptor(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
-	md, ok := metadata.FromIncomingContext(ctx)
-	if !ok {
-		return nil, status.Errorf(codes.Unauthenticated, "missing token")
-	}
-	newCtx := metadata.NewIncomingContext(ctx, md)
-	return handler(newCtx, req)
-}
 
+// Auth handles the authentication request.
 func (g *GophKeeperServer) Auth(ctx context.Context, in *pb.AuthLoginRequest) (*pb.AuthLoginResponse, error) {
 	var resp pb.AuthLoginResponse
 	passHash := utils.GetMD5Hash(in.Password)
@@ -94,6 +90,8 @@ func (g *GophKeeperServer) Auth(ctx context.Context, in *pb.AuthLoginRequest) (*
 	}
 	return &resp, nil
 }
+
+// Login handles the login request.
 func (g *GophKeeperServer) Login(ctx context.Context, in *pb.AuthLoginRequest) (*pb.AuthLoginResponse, error) {
 	var resp pb.AuthLoginResponse
 	passHash := utils.GetMD5Hash(in.Password)
@@ -112,6 +110,8 @@ func (g *GophKeeperServer) Login(ctx context.Context, in *pb.AuthLoginRequest) (
 
 	return &resp, nil
 }
+
+// AddData handles the request to add data.
 func (g *GophKeeperServer) AddData(ctx context.Context, in *pb.AddDataRequest) (*emptypb.Empty, error) {
 	//TODO хранить зашифровано
 	token := GetUserId(ctx)
@@ -128,6 +128,8 @@ func (g *GophKeeperServer) AddData(ctx context.Context, in *pb.AddDataRequest) (
 	}
 	return new(emptypb.Empty), nil
 }
+
+// GetData handles the request to get data.
 func (g *GophKeeperServer) GetData(ctx context.Context, in *pb.GetDataRequest) (*pb.GetDataResponse, error) {
 	var resp pb.GetDataResponse
 	token := GetUserId(ctx)
@@ -142,9 +144,11 @@ func (g *GophKeeperServer) GetData(ctx context.Context, in *pb.GetDataRequest) (
 	if err != nil {
 		return nil, mapErr(err)
 	}
-	resp.Data = &pb.Data{DataId: in.DataId, Data: data.Data, MetaInfo: data.Metadata}
+	resp.Data = &pb.Data{DataId: in.DataId, Data: data.Data, MetaInfo: data.Metadata, ChangedAt: timestamppb.New(data.ChangedAt), Deleted: false}
 	return &resp, nil
 }
+
+// DelData handles the request to delete data.
 func (g *GophKeeperServer) DelData(ctx context.Context, in *pb.GetDataRequest) (*emptypb.Empty, error) {
 	token := GetUserId(ctx)
 	if token == "" {
@@ -160,6 +164,8 @@ func (g *GophKeeperServer) DelData(ctx context.Context, in *pb.GetDataRequest) (
 	}
 	return new(emptypb.Empty), nil
 }
+
+// Sync handles the synchronization request.
 func (g *GophKeeperServer) Sync(ctx context.Context, in *emptypb.Empty) (*pb.SynchronizationResponse, error) {
 	var resp pb.SynchronizationResponse
 	token := GetUserId(ctx)
@@ -174,11 +180,16 @@ func (g *GophKeeperServer) Sync(ctx context.Context, in *emptypb.Empty) (*pb.Syn
 	if err != nil {
 		return nil, mapErr(err)
 	}
-	for _, v := range data {
-		resp.Data = append(resp.Data, &pb.Data{DataId: v.DataID, Data: v.Data, MetaInfo: v.Metadata, Deleted: v.Deleted, ChangedAt: timestamppb.New(v.ChangedAt)})
+	if data != nil {
+		for _, v := range data {
+			resp.Data = append(resp.Data, &pb.Data{DataId: v.DataID, Data: v.Data, MetaInfo: v.Metadata, Deleted: v.Deleted, ChangedAt: timestamppb.New(v.ChangedAt)})
+		}
 	}
 	return &resp, nil
+
 }
+
+// ClientSync handles the client synchronization request.
 func (g *GophKeeperServer) ClientSync(ctx context.Context, in *pb.ClientSyncRequest) (*emptypb.Empty, error) {
 	token := GetUserId(ctx)
 	if token == "" {

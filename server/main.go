@@ -15,7 +15,6 @@ func main() {
 		log.Fatal(err)
 	}
 
-	//	s := grpc.NewServer(grpc.UnaryInterceptor(grpcfuncs.UnaryInterceptor))
 	s := grpc.NewServer()
 	pb.RegisterGophkeeperServer(s, &grpcfuncs.GophKeeperServer{})
 

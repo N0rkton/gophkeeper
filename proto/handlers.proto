@@ -20,7 +20,7 @@ message Data{
   string data_id=1;
   string data=2;
   string meta_info=3;
-bool deleted=4;
+  bool deleted=4;
   google.protobuf.Timestamp changed_at = 5;
 
 }

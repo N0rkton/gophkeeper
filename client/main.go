@@ -12,13 +12,11 @@ import (
 var Storage storage.Storage
 
 func Init() {
-
 	Storage = storage.NewMemoryStorage()
-
+	storage.Init()
 }
 func main() {
 	Init()
-	storage.Init()
 	app := cli.NewApp()
 	app.Name = "password keeper"
 	app.Usage = "keeps your passwords"
@@ -174,7 +172,10 @@ func sync() *cli.Command {
 			if err != nil {
 				return fmt.Errorf("error login happend: %w", err)
 			}
-			Storage.ClientSync(id, nil)
+			err = Storage.ClientSync(id, nil)
+			if err != nil {
+				return fmt.Errorf("error client sync happend: %w", err)
+			}
 			data, err := Storage.Sync(id)
 			if err != nil {
 				return fmt.Errorf("error sync happend: %w", err)
