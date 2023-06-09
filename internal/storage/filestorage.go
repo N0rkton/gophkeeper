@@ -4,7 +4,6 @@ package storage
 import (
 	"context"
 	"errors"
-	"fmt"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/metadata"
@@ -187,7 +186,7 @@ func (ms *MemoryStorage) GetData(dataID string, userID uint32) (datamodels.Data,
 	}
 
 	data, ok := ms.localMem[datamodels.UniqueData{DataID: dataID, UserID: userID}]
-	if !ok {
+	if !ok || data.Deleted {
 		if err == nil {
 			ms.localMem[datamodels.UniqueData{DataID: dataID, UserID: userID}] = response
 			errF := files.WriteData(response)
@@ -199,7 +198,6 @@ func (ms *MemoryStorage) GetData(dataID string, userID uint32) (datamodels.Data,
 		return datamodels.Data{}, errors.New("no data found")
 	}
 	if data.UserID == userID && !data.Deleted {
-		fmt.Println(data.Deleted, data.ChangedAt)
 		data.Data = utils.Decrypt(data.Data, clientSecret)
 		data.Metadata = utils.Decrypt(data.Metadata, clientSecret)
 	}
