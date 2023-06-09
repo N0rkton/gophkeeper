@@ -1,5 +1,5 @@
-// Package verysecretfiles provides functions for reading and writing data to a JSON file.
-package verysecretfiles
+// Package filereaders provides functions for reading and writing data to a JSON file.
+package filereaders
 
 import (
 	"bufio"

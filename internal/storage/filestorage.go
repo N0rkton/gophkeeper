@@ -13,7 +13,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"gophkeeper/internal/datamodels"
 	"gophkeeper/internal/sessionstorage"
-	files "gophkeeper/internal/storage/verysecretfiles"
+	files "gophkeeper/internal/storage/filereaders"
 	"gophkeeper/internal/utils"
 	pb "gophkeeper/proto"
 	"log"
