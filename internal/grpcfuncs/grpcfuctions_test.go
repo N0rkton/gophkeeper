@@ -2,12 +2,13 @@ package grpcfuncs_test
 
 import (
 	"context"
-	"google.golang.org/grpc/credentials/insecure"
-	"google.golang.org/grpc/metadata"
-	"gophkeeper/server/grpcfuncs"
+	"gophkeeper/internal/grpcfuncs"
 	"log"
 	"net"
 	"testing"
+
+	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/metadata"
 
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/grpc"
@@ -17,16 +18,16 @@ import (
 
 func TestAuth(t *testing.T) {
 	// Start the gRPC server in a separate goroutine
-
+	g := grpcfuncs.NewGophKeeperServer()
 	go func() {
-		grpcfuncs.Init()
+
 		listen, err := net.Listen("tcp", ":3200")
 		if err != nil {
 			log.Fatal(err)
 		}
 
 		s := grpc.NewServer()
-		pb.RegisterGophkeeperServer(s, &grpcfuncs.GophKeeperServer{})
+		pb.RegisterGophkeeperServer(s, &g)
 
 		if err := s.Serve(listen); err != nil {
 			log.Fatal(err)
