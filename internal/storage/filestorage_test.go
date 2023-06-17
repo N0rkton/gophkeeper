@@ -1,10 +1,10 @@
 package storage
 
 import (
-	"gophkeeper/internal/datamodels"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"gophkeeper/internal/datamodels"
 )
 
 func TestMemoryStorage_Login(t *testing.T) {
