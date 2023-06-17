@@ -1,25 +1,24 @@
 package main
 
 import (
-	"gophkeeper/internal/grpcfuncs"
+	"google.golang.org/grpc"
 	pb "gophkeeper/proto"
 	"log"
 	"net"
-
-	"google.golang.org/grpc"
 )
 
 func main() {
-	gophKeeper := grpcfuncs.NewGophKeeperServer()
+
 	listen, err := net.Listen("tcp", ":3200")
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	s := grpc.NewServer()
-	pb.RegisterGophkeeperServer(s, &gophKeeper)
+	s := grpc.NewServer(grpc.UnaryInterceptor(unaryInterceptor))
 
-	if err = s.Serve(listen); err != nil {
+	pb.RegisterGophkeeperServer(s, &GophKeeperServer{})
+
+	if err := s.Serve(listen); err != nil {
 		log.Fatal(err)
 	}
 }

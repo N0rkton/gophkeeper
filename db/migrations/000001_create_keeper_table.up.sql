@@ -1,19 +1,17 @@
 BEGIN;
-
+#DROP TYPE IF EXISTS order_state;
+#create type order_state as enum ('REGISTERED', 'INVALID', 'PROCESSING', 'PROCESSED', 'NEW');
 CREATE TABLE IF NOT EXISTS users (
                                      id SERIAL PRIMARY KEY,
                                      login VARCHAR(255) NOT NULL UNIQUE,
                                      password VARCHAR(255) NOT NULL
-    );
+);
 CREATE TABLE IF NOT EXISTS keeper (
-    id SERIAL PRIMARY KEY,
-    data_id varchar(255) NOT NULL ,
-    user_id int references users(id) NOT NULL,
-    data_info varchar(255) NOT NULL,
+    id int PRIMARY KEY UNIQUE,
+    user_id int references users(id),
+    data_info varchar(255) ,
     meta_info varchar(255),
-    changed_at timestamp with time zone default CURRENT_TIMESTAMP,
-    deleted bool default false,
-    UNIQUE (user_id, data_id)
-    );
+    changed_at timestamp with time zone default now()
+);
 COMMIT;
 
