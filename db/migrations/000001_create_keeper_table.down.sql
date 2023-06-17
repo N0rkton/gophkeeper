@@ -1,4 +1,0 @@
-BEGIN ;
-DROP TABLE IF EXISTS gophermart;
-DROP TABLE IF EXISTS balance;
-COMMIT ;
