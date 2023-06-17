@@ -2,18 +2,17 @@ package grpcfuncs_test
 
 import (
 	"context"
-	"gophkeeper/internal/grpcfuncs"
 	"log"
 	"net"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"gophkeeper/internal/grpcfuncs"
+	pb "gophkeeper/proto"
+
+	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/metadata"
-
-	"github.com/stretchr/testify/assert"
-	"google.golang.org/grpc"
-
-	pb "gophkeeper/proto"
 )
 
 func TestAuth(t *testing.T) {

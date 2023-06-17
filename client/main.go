@@ -1,10 +1,11 @@
 package main
 
 import (
-	"gophkeeper/internal/actions"
-	"gophkeeper/internal/storage"
 	"log"
 	"os"
+
+	"gophkeeper/internal/actions"
+	"gophkeeper/internal/storage"
 
 	"github.com/urfave/cli/v2"
 )

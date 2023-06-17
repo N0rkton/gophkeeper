@@ -1,10 +1,11 @@
 package main
 
 import (
-	"gophkeeper/internal/grpcfuncs"
-	pb "gophkeeper/proto"
 	"log"
 	"net"
+
+	"gophkeeper/internal/grpcfuncs"
+	pb "gophkeeper/proto"
 
 	"google.golang.org/grpc"
 )
